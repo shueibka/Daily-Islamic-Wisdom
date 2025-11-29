@@ -1,44 +1,63 @@
 // src/services/hadithApi.ts
 import { Hadith } from "../models/Hadith";
 
-type RawHadithApiResponse = {
-  data?: {
-    id?: string | number;
-    hadith?: string;
-    english?: string;
-    arabic?: string;
-    collection?: string;
-    narrator?: string;
-    reference?: string;
-    hadithNumber?: string | number;
+type RandomHadithResponse = {
+  data: {
+    book: string;
+    bookName?: string;
+    chapterName?: string;
+    hadith_english: string;
+    header?: string;
+    id: number | string;
+    refno?: string;
   };
 };
 
-// This function is written to be flexible – adjust mapping once you decide on exact API.
-export async function fetchRandomHadith(): Promise<Hadith> {
-  // Example API URL – replace with your chosen hadith API endpoint.
-  const url = "https://random-hadith-api.vercel.app/api/random"; // or your preferred API
+const BASE_URL = "https://random-hadith-generator.vercel.app";
 
-  const res = await fetch(url);
+async function fetchFromEndpoint(path: string): Promise<RandomHadithResponse> {
+  const res = await fetch(`${BASE_URL}${path}`);
 
   if (!res.ok) {
-    throw new Error(`Failed to fetch hadith: ${res.status}`);
+    throw new Error(`Hadith API error: ${res.status}`);
   }
 
-  const json = (await res.json()) as any;
+  return (await res.json()) as RandomHadithResponse;
+}
 
-  // This part may need tweaks depending on the exact JSON shape you get.
-  const data = Array.isArray(json) ? json[0] : json.data ?? json;
-
-  const hadith: Hadith = {
-    id: String(data.id ?? data.hadithNumber ?? Date.now()),
-    collection: data.collection ?? "Unknown collection",
-    hadithNumber: data.hadithNumber ? String(data.hadithNumber) : undefined,
-    textArabic: data.arabic ?? data.hadith ?? "",
-    textEnglish: data.english ?? data.hadith ?? "",
-    narrator: data.narrator,
-    reference: data.reference,
+function mapToHadith(dto: RandomHadithResponse["data"]): Hadith {
+  return {
+    id: String(dto.id),
+    collection: dto.book,
+    bookName: dto.bookName?.trim(),
+    chapterName: dto.chapterName?.trim(),
+    textEnglish: dto.hadith_english.trim(),
+    textArabic: undefined, // this API doesn't provide Arabic text
+    narrator: dto.header?.replace(/^\\s*|\\s*$/g, ""), // trim header
+    reference: dto.refno,
   };
+}
 
-  return hadith;
+/**
+ * Get a random hadith from Sahih al-Bukhari.
+ */
+export async function fetchRandomBukhari(): Promise<Hadith> {
+  const json = await fetchFromEndpoint("/bukhari/");
+  return mapToHadith(json.data);
+}
+
+/**
+ * Get a random hadith from Sahih Muslim.
+ */
+export async function fetchRandomMuslim(): Promise<Hadith> {
+  const json = await fetchFromEndpoint("/muslim/");
+  return mapToHadith(json.data);
+}
+
+/**
+ * Get a random hadith from either Bukhari or Muslim.
+ */
+export async function fetchRandomHadith(): Promise<Hadith> {
+  const useBukhari = Math.random() < 0.5;
+  return useBukhari ? fetchRandomBukhari() : fetchRandomMuslim();
 }
