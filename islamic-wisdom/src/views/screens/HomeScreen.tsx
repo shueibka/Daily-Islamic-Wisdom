@@ -17,6 +17,7 @@ import {
   getRandomProverb,
 } from "../../controllers/wisdomController";
 import { generateProverbsFromHadith } from "../../services/aiService";
+import { Swipeable } from "react-native-gesture-handler";
 
 type Props = NativeStackScreenProps<RootStackParamList, "Home">;
 
@@ -47,6 +48,24 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       setProverb(p);
     } catch (e) {
       console.error(e);
+      setHadithError(
+        "Failed to load hadith. Please swipe or tap refresh to try again."
+      );
+    } finally {
+      setLoadingHadith(false);
+    }
+  };
+
+  const refreshHadithOnly = async () => {
+    try {
+      setHadithError(null);
+      setLoadingHadith(true);
+      setAiProverbs([]);
+      setAiError(null);
+      const h = await getRandomHadith();
+      setHadith(h);
+    } catch (e) {
+      console.error(e);
       setHadithError("Failed to load hadith. Please try again.");
     } finally {
       setLoadingHadith(false);
@@ -63,7 +82,9 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
       setAiProverbs(result);
     } catch (e) {
       console.error(e);
-      setAiError("Could not generate reflections. Check AI API key.");
+      setAiError(
+        "Could not generate reflections. Check AI settings or try again."
+      );
     } finally {
       setAiLoading(false);
     }
@@ -73,97 +94,135 @@ const HomeScreen: React.FC<Props> = ({ navigation }) => {
     loadContent();
   }, []);
 
+  const renderHadithSwipeAction = () => (
+    <View style={[styles.swipeAction, styles.swipeActionPrimary]}>
+      <Text style={styles.swipeActionText}>Next hadith ↻</Text>
+    </View>
+  );
+
+  const renderProverbSwipeAction = () => (
+    <View style={[styles.swipeAction, styles.swipeActionSecondary]}>
+      <Text style={styles.swipeActionText}>Next wisdom ↻</Text>
+    </View>
+  );
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.appTitle}>Daily Islamic Wisdom</Text>
+      <Text style={styles.subtitle}>
+        Swipe cards or tap buttons to discover new hadith and wisdom.
+      </Text>
 
-      {/* HADITH CARD */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Hadith of the Moment</Text>
-          <TouchableOpacity onPress={loadContent} disabled={loadingHadith}>
-            <Text style={styles.link}>
-              {loadingHadith ? "Loading..." : "Refresh"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {loadingHadith && (
-          <View style={styles.center}>
-            <ActivityIndicator />
-          </View>
-        )}
-
-        {hadithError && <Text style={styles.error}>{hadithError}</Text>}
-
-        {hadith && !loadingHadith && !hadithError && (
-          <>
-            {hadith.textArabic ? (
-              <Text style={styles.arabic}>{hadith.textArabic}</Text>
-            ) : null}
-
-            <Text style={styles.english}>{hadith.textEnglish}</Text>
-
-            <Text style={styles.meta}>
-              {hadith.collection}
-              {hadith.bookName ? ` • ${hadith.bookName}` : ""}
-            </Text>
-
-            {hadith.chapterName && (
-              <Text style={styles.meta}>{hadith.chapterName}</Text>
-            )}
-
-            {hadith.narrator && (
-              <Text style={styles.meta}>Narrated by: {hadith.narrator}</Text>
-            )}
-
-            {hadith.reference && (
-              <Text style={styles.meta}>Ref: {hadith.reference}</Text>
-            )}
+      {/* HADITH CARD (SWIPE LEFT FOR NEXT) */}
+      <Swipeable
+        renderRightActions={renderHadithSwipeAction}
+        onSwipeableRightOpen={refreshHadithOnly}
+      >
+        <View style={styles.card}>
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={styles.cardLabel}>Hadith of the Moment</Text>
+              <Text style={styles.cardSubLabel}>Bukhari / Muslim</Text>
+            </View>
 
             <TouchableOpacity
-              style={styles.aiButton}
-              onPress={handleGenerateWisdom}
-              disabled={aiLoading}
+              onPress={refreshHadithOnly}
+              disabled={loadingHadith}
             >
-              <Text style={styles.aiButtonText}>
-                {aiLoading
-                  ? "Generating wisdom..."
-                  : "Generate wisdom from this hadith"}
+              <Text style={styles.link}>
+                {loadingHadith ? "Loading..." : "Refresh"}
               </Text>
             </TouchableOpacity>
+          </View>
 
-            {aiError && <Text style={styles.error}>{aiError}</Text>}
+          {loadingHadith && (
+            <View style={styles.center}>
+              <ActivityIndicator />
+            </View>
+          )}
 
-            {aiProverbs.length > 0 && (
-              <View style={styles.aiList}>
-                {aiProverbs.map((line, idx) => (
-                  <Text key={idx} style={styles.aiLine}>
-                    • {line}
-                  </Text>
-                ))}
+          {hadithError && <Text style={styles.error}>{hadithError}</Text>}
+
+          {hadith && !loadingHadith && !hadithError && (
+            <>
+              {hadith.textArabic ? (
+                <Text style={styles.arabic}>{hadith.textArabic}</Text>
+              ) : null}
+
+              <Text style={styles.english}>{hadith.textEnglish}</Text>
+
+              <View style={styles.metaRow}>
+                <Text style={styles.meta}>
+                  {hadith.collection}
+                  {hadith.bookName ? ` • ${hadith.bookName}` : ""}
+                </Text>
+                {hadith.reference && (
+                  <Text style={styles.meta}>{hadith.reference}</Text>
+                )}
               </View>
-            )}
-          </>
-        )}
-      </View>
 
-      {/* PROVERB CARD */}
-      <View style={styles.card}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.cardTitle}>Wisdom of the Day</Text>
-          <TouchableOpacity onPress={() => setProverb(getRandomProverb())}>
-            <Text style={styles.link}>New wisdom</Text>
-          </TouchableOpacity>
+              {hadith.chapterName && (
+                <Text style={styles.meta}>{hadith.chapterName}</Text>
+              )}
+
+              {hadith.narrator && (
+                <Text style={styles.meta}>Narrated by: {hadith.narrator}</Text>
+              )}
+
+              <TouchableOpacity
+                style={styles.aiButton}
+                onPress={handleGenerateWisdom}
+                disabled={aiLoading}
+              >
+                <Text style={styles.aiButtonText}>
+                  {aiLoading
+                    ? "Generating wisdom..."
+                    : "Generate wisdom from this hadith"}
+                </Text>
+              </TouchableOpacity>
+
+              {aiError && <Text style={styles.error}>{aiError}</Text>}
+
+              {aiProverbs.length > 0 && (
+                <View style={styles.aiList}>
+                  <Text style={styles.sectionLabel}>Reflections</Text>
+                  {aiProverbs.map((line, idx) => (
+                    <Text key={idx} style={styles.aiLine}>
+                      • {line}
+                    </Text>
+                  ))}
+                </View>
+              )}
+            </>
+          )}
         </View>
+      </Swipeable>
 
-        {proverb && (
-          <>
-            <Text style={styles.proverbText}>{proverb.text}</Text>
-            <Text style={styles.proverbMeta}>{proverb.category}</Text>
-          </>
-        )}
-      </View>
+      {/* PROVERB CARD (SWIPE LEFT FOR NEXT) */}
+      <Swipeable
+        renderRightActions={renderProverbSwipeAction}
+        onSwipeableRightOpen={() => setProverb(getRandomProverb())}
+      >
+        <View style={[styles.card, styles.secondaryCard]}>
+          <View style={styles.cardHeaderRow}>
+            <View>
+              <Text style={styles.cardLabel}>Wisdom of the Day</Text>
+              <Text style={styles.cardSubLabel}>Short Islamic proverb</Text>
+            </View>
+
+            <TouchableOpacity onPress={() => setProverb(getRandomProverb())}>
+              <Text style={styles.link}>New wisdom</Text>
+            </TouchableOpacity>
+          </View>
+
+          {proverb && (
+            <>
+              <Text style={styles.proverbText}>{proverb.text}</Text>
+              <Text style={styles.proverbMeta}>{proverb.category}</Text>
+            </>
+          )}
+        </View>
+      </Swipeable>
 
       {/* NAVIGATION BUTTON */}
       <TouchableOpacity
@@ -180,41 +239,61 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     paddingBottom: 32,
-    backgroundColor: "#f5f5f5",
+    backgroundColor: "#0f172a", // dark blue background
   },
   appTitle: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: "700",
     textAlign: "center",
+    marginBottom: 4,
+    color: "#f9fafb",
+  },
+  subtitle: {
+    fontSize: 13,
+    textAlign: "center",
     marginBottom: 16,
+    color: "#cbd5f5",
   },
   card: {
-    backgroundColor: "#fff",
-    borderRadius: 12,
+    backgroundColor: "#ffffff",
+    borderRadius: 18,
     padding: 16,
     marginBottom: 16,
-    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 4,
   },
-  cardHeader: {
+  secondaryCard: {
+    backgroundColor: "#111827",
+  },
+  cardHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 8,
+    marginBottom: 12,
   },
-  cardTitle: {
-    fontSize: 16,
+  cardLabel: {
+    fontSize: 15,
     fontWeight: "600",
+    color: "#111827",
+  },
+  cardSubLabel: {
+    fontSize: 12,
+    color: "#6b7280",
   },
   link: {
-    color: "#1e88e5",
-    fontWeight: "500",
+    color: "#22c55e",
+    fontWeight: "600",
+    fontSize: 13,
   },
   center: {
     alignItems: "center",
     marginVertical: 8,
   },
   error: {
-    color: "#e53935",
+    color: "#f97316",
     marginTop: 8,
     fontSize: 12,
   },
@@ -222,52 +301,83 @@ const styles = StyleSheet.create({
     fontSize: 18,
     textAlign: "right",
     marginBottom: 8,
+    color: "#111827",
   },
   english: {
     fontSize: 14,
-    marginBottom: 8,
+    marginBottom: 10,
+    color: "#111827",
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   meta: {
-    fontSize: 12,
-    color: "#777",
+    fontSize: 11,
+    color: "#6b7280",
   },
   proverbText: {
     fontSize: 16,
     marginBottom: 6,
+    color: "#e5e7eb",
   },
   proverbMeta: {
     fontSize: 12,
-    color: "#888",
+    color: "#9ca3af",
   },
   button: {
     marginTop: 8,
-    backgroundColor: "#1e88e5",
+    backgroundColor: "#22c55e",
     paddingVertical: 12,
     borderRadius: 999,
     alignItems: "center",
   },
   buttonText: {
-    color: "#fff",
-    fontWeight: "600",
+    color: "#0f172a",
+    fontWeight: "700",
   },
   aiButton: {
     marginTop: 12,
     paddingVertical: 10,
     borderRadius: 999,
-    backgroundColor: "#2e7d32",
+    backgroundColor: "#16a34a",
     alignItems: "center",
   },
   aiButtonText: {
-    color: "#fff",
+    color: "#f9fafb",
     fontWeight: "600",
     fontSize: 14,
   },
   aiList: {
-    marginTop: 10,
+    marginTop: 12,
   },
   aiLine: {
     fontSize: 13,
     marginBottom: 4,
+    color: "#111827",
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 4,
+    color: "#6b7280",
+  },
+  swipeAction: {
+    justifyContent: "center",
+    alignItems: "flex-end",
+    paddingHorizontal: 16,
+    marginVertical: 4,
+    borderRadius: 18,
+  },
+  swipeActionPrimary: {
+    backgroundColor: "#22c55e",
+  },
+  swipeActionSecondary: {
+    backgroundColor: "#0ea5e9",
+  },
+  swipeActionText: {
+    color: "#f9fafb",
+    fontWeight: "600",
   },
 });
 
